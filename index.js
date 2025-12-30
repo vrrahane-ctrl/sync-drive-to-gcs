@@ -7,6 +7,8 @@ const drive = google.drive("v3");
 // 🔴 IMPORTANT: this must match your bucket name exactly
 const BUCKET_NAME = "frh-rnt-property-review";
 const GCS_PREFIX = "Rent_search_MkDwn/";
+const DRIVE_FOLDER_ID = "1Ce1JRMU-Tggvgj7ebTwGg9_PjRqHAJt5";
+
 
 export async function syncDriveToGCS(req, res) {
   try {
@@ -19,7 +21,7 @@ export async function syncDriveToGCS(req, res) {
 
     // List files in Drive (non-folders)
     const response = await drive.files.list({
-      q: "mimeType!='application/vnd.google-apps.folder'",
+      q: `'${DRIVE_FOLDER_ID}' in parents and mimeType!='application/vnd.google-apps.folder'`,
       fields: "files(id, name, modifiedTime)"
     });
 
