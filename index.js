@@ -1,48 +1,47 @@
+import express from "express";
 import { google } from "googleapis";
 import { Storage } from "@google-cloud/storage";
 
+const app = express();
 const storage = new Storage();
 const drive = google.drive("v3");
 
-// 🔴 IMPORTANT: this must match your bucket name exactly
 const BUCKET_NAME = "frh-rnt-property-review";
 const GCS_PREFIX = "Rent_search_MkDwn/";
 const DRIVE_FOLDER_ID = "1Ce1JRMU-Tggvgj7ebTwGg9_PjRqHAJt5";
 
-
-export async function syncDriveToGCS(req, res) {
+app.get("/", async (req, res) => {
   try {
-    // Authenticate using the service account
     const auth = new google.auth.GoogleAuth({
       scopes: ["https://www.googleapis.com/auth/drive.readonly"]
     });
+
     const authClient = await auth.getClient();
     google.options({ auth: authClient });
 
-    // List files in Drive (non-folders)
     const response = await drive.files.list({
       q: `'${DRIVE_FOLDER_ID}' in parents and mimeType!='application/vnd.google-apps.folder'`,
-      fields: "files(id, name, modifiedTime)"
+      fields: "files(id, name)"
     });
 
     let copied = 0;
+    const bucket = storage.bucket(BUCKET_NAME);
 
     for (const file of response.data.files) {
-      // Only sync markdown files
       if (!file.name.endsWith(".md")) continue;
 
-      const fileStream = await drive.files.get(
+      const destFile = bucket.file(`${GCS_PREFIX}${file.name}`);
+      const [exists] = await destFile.exists();
+      if (exists) continue;
+
+      const driveStream = await drive.files.get(
         { fileId: file.id, alt: "media" },
         { responseType: "stream" }
       );
 
-      const gcsFile = storage
-        .bucket(BUCKET_NAME)
-        .file(GCS_PREFIX + file.name);
-
       await new Promise((resolve, reject) => {
-        fileStream.data
-          .pipe(gcsFile.createWriteStream())
+        driveStream.data
+          .pipe(destFile.createWriteStream())
           .on("finish", resolve)
           .on("error", reject);
       });
@@ -50,14 +49,12 @@ export async function syncDriveToGCS(req, res) {
       copied++;
     }
 
-    res.status(200).json({
-      message: "Drive sync completed",
-      filesCopied: copied
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: "Sync failed",
-      details: error.message
-    });
+    res.json({ message: "Drive sync completed", filesCopied: copied });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
-}
+});
+
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`Listening on ${PORT}`));
