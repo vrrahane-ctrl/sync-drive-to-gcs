@@ -18,10 +18,10 @@ app.get("/", async (req, res) => {
 
     const authClient = await auth.getClient();
     google.options({ auth: authClient });
-
+filed
     const response = await drive.files.list({
       q: `'${DRIVE_FOLDER_ID}' in parents and mimeType!='application/vnd.google-apps.folder'`,
-      fields: "files(id, name)"
+      fields: "files(id, name, mimeType)"x1
     });
 
     let copied = 0;
@@ -34,10 +34,23 @@ app.get("/", async (req, res) => {
       const [exists] = await destFile.exists();
       if (exists) continue;
 
-      const driveStream = await drive.files.get(
-        { fileId: file.id, alt: "media" },
-        { responseType: "stream" }
-      );
+      let driveStream;
+
+      if (file.mimeType === "application/vnd.google-apps.document") {
+        driveStream = await drive.files.export(
+          {
+            fileId: file.id,
+            mimeType: "text/markdown"
+          },
+          { responseType: "stream" }
+        );
+      } else {
+        driveStream = await drive.files.get(
+          { fileId: file.id, alt: "media" },
+          { responseType: "stream" }
+        );
+      }
+
 
       await new Promise((resolve, reject) => {
         driveStream.data
