@@ -28,7 +28,7 @@ filed
     const bucket = storage.bucket(BUCKET_NAME);
 
     for (const file of response.data.files) {
-      if (!file.name.endsWith(".md")) continue;
+      
 
       const destFile = bucket.file(`${GCS_PREFIX}${file.name}`);
       const [exists] = await destFile.exists();
